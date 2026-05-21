@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+*.egg
+
+# Backup files
+*.bak
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Abaqus temp files
+*.odb
+*.com
+*.dat
+*.msg
+*.sta
+*.prt
+*.sim
+*.lck
+*.abq
+*.stt
+*.mdl
+*.sel
+*.rec
+*.ipm
+*.cid
+Abaqus_All_Buckling_Results
+Abaqus_Buckling_Results
+Local_Buckling_Results_In_Defect_Factor

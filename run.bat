@@ -1,0 +1,1 @@
+abaqus cae noGUI=build_model_local.py
