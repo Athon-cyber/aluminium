@@ -399,7 +399,7 @@ if __name__ == "__main__":
         df = ys[1]
         plastic_data = ALUMINUM_MATERIALS[yield_stress_param]
         ys_str = str(yield_stress_param)
-        for j in range(15, 16):
+        for j in range(28, 29):
             h_param = 140.0 + j * 10.0
             b_param = 140.0 + j * 10.0
             h3_param = 50.0 + j * 10.0
