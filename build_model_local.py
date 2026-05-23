@@ -270,7 +270,7 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
         memory=90,
         memoryUnits=PERCENTAGE,
         getMemoryFromAnalysis=True,
-        resultsFormat=ODB, numDomains=16, numCpus=16,
+        resultsFormat=ODB, numDomains=16, numCpus=16, numGPUs=1
     )
     job.submit(consistencyChecking=OFF)
     job.waitForCompletion()
@@ -294,7 +294,7 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
     mdb.models[model_name+'-Copy'].loads['Axial_Compressive_Force'].suppress()
     mdb.models[model_name+'-Copy'].boundaryConditions['BC_Top_Guided'].setValuesInStep(stepName='BuckleStep', u3=-20.0)
     # Submit nonlinear Riks job
-    job2 = mdb.Job(name=job_name+'_Local', model=model_name+'-Copy', type=ANALYSIS, memory=90, memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, resultsFormat=ODB, numDomains=16, numCpus=16,)
+    job2 = mdb.Job(name=job_name+'_Local', model=model_name+'-Copy', type=ANALYSIS, memory=90, memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, resultsFormat=ODB, numDomains=16, numCpus=16, numGPUs=1)
     job2.submit(consistencyChecking=OFF)
     job2.waitForCompletion()
     print("Nonlinear local buckling job completed successfully!")
