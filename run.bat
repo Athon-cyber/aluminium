@@ -1,1 +1,1 @@
-abaqus cae noGUI=build_model_local.py
+abaqus cae noGUI=build_model_local_in_cli.py
