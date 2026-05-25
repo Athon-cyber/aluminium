@@ -109,7 +109,7 @@ class MultiCellAluminumSection:
 
 
 def create_buckling_model(section, model_name='Buckling_Model', part_name='MultiCell_Part',
-                          seed_size=5.0, job_name='Buckling_Analysis', num_eigen=4, step_name='BuckleStep'):
+                          seed_size=5.0, job_name='Buckling_Analysis', num_eigen=4, step_name='BuckleStep', cpus=4, gpus=1):
     """
     Create and submit buckling modal analysis for multi-cell aluminum component
     :param section: Instance of MultiCellAluminumSection
@@ -270,7 +270,7 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
         memory=90,
         memoryUnits=PERCENTAGE,
         getMemoryFromAnalysis=True,
-        resultsFormat=ODB, numDomains=16, numCpus=16, numGPUs=1
+        resultsFormat=ODB, numDomains=cpus, numCpus=cpus, numGPUs=gpus
     )
     job.submit(consistencyChecking=OFF)
     job.waitForCompletion()
@@ -294,7 +294,7 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
     mdb.models[model_name+'-Copy'].loads['Axial_Compressive_Force'].suppress()
     mdb.models[model_name+'-Copy'].boundaryConditions['BC_Top_Guided'].setValuesInStep(stepName='BuckleStep', u3=-20.0)
     # Submit nonlinear Riks job
-    job2 = mdb.Job(name=job_name+'_Local', model=model_name+'-Copy', type=ANALYSIS, memory=90, memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, resultsFormat=ODB, numDomains=16, numCpus=16, numGPUs=1)
+    job2 = mdb.Job(name=job_name+'_Local', model=model_name+'-Copy', type=ANALYSIS, memory=90, memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, resultsFormat=ODB, numDomains=cpus, numCpus=cpus, numGPUs=gpus)
     job2.submit(consistencyChecking=OFF)
     job2.waitForCompletion()
     print("Nonlinear local buckling job completed successfully!")
@@ -480,7 +480,7 @@ if __name__ == "__main__":
                     defect_factor=0.006,
                     plastic_table=plastic_data,
                     yield_stress=yield_stress_param,
-                    working_dir=rf"C:\aluminium\abaqus_working_directory\Local_Buckling_Results_In_Dimension\{ys_str}_{str_df}".replace("0.", "")
+                    working_dir=rf"D:\abaqus_working_directory\Local_Buckling_Results_In_Dimension\{ys_str}_{str_df}".replace("0.", "")
                 )
                 job_suffix = f"_YS{ys_str}_b{b_param}_h{h_param}".replace(".0", "")
                 create_buckling_model(
@@ -490,6 +490,8 @@ if __name__ == "__main__":
                     seed_size=4,
                     job_name=f'Buckling_Job{job_suffix}',
                     num_eigen=6,
+                    cpus=4,
+                    gpus=1
                 )
                 print(f"yield_stress = {ys} compute finished")
             except Exception as e:
