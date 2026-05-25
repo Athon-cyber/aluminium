@@ -193,8 +193,8 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
     assembly.DatumCsysByDefault(CARTESIAN)
     instance = assembly.Instance(name=part_name + '-1', part=part, dependent=ON)
     # Create reference points at top and bottom
-    rp_bottom = assembly.ReferencePoint(point=(20.0, 0.0, -50.0))
-    rp_top = assembly.ReferencePoint(point=(20.0, 0.0, section.l + 50.0))
+    rp_bottom = assembly.ReferencePoint(point=(0.0, 0.0, -50.0))
+    rp_top = assembly.ReferencePoint(point=(0.0, 0.0, section.l + 50.0))
     rp_bottom_obj = assembly.referencePoints[rp_bottom.id]
     rp_top_obj = assembly.referencePoints[rp_top.id]
     print("assembly finished")
@@ -399,7 +399,7 @@ Section_list7 = [120, 200, 5, 35, 20, 90, 10, 35, 10, 30, 20] # 200x120x5-test
 Section_list8 = [120, 120, 3, 35, 10, 30, 10, 35, 10, 30, 10] # 120x120x3
 
 TASKS = [
-    {"section": Section_list5, "lengths": L_list6, "yield_stress_list": [80]}, #[181, 182, 183, 111, 260, ]}
+    {"section": Section_list3, "lengths": L_list3, "yield_stress_list": [181]}, #[181, 182, 183, 111, 260, ]}
     # {"section": Section_list2, "lengths": L_list2, "yield_stress_list": [90, 110, 111]},
     # {"section": Section_list3, "lengths": L_list3, "yield_stress_list": [90, 110, 111]},
     # {"section": Section_list4, "lengths": L_list4, "yield_stress_list": [90, 110, 111]},
