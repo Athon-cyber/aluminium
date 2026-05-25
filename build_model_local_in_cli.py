@@ -2,6 +2,7 @@ from abaqus import *
 from abaqusConstants import *
 import numpy as np
 import matplotlib.pyplot as plt
+from step import *
 import os
 import csv
 
@@ -115,10 +116,13 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
     :param section: Instance of MultiCellAluminumSection
     """
     # Initialize model
+    # if model_name not in mdb.models.keys():
+    #     model = mdb.Model(name=model_name)
+    # else:
+    #     model = mdb.models[model_name]
     if model_name not in mdb.models.keys():
-        model = mdb.Model(name=model_name)
-    else:
-        model = mdb.models[model_name]
+        mdb.Model(name=model_name)
+    model = mdb.models[model_name]
     # ===================== save files =====================
     root_path = section.working_dir
     import datetime
@@ -208,7 +212,12 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
         maxIterations=500
     )
     # Set field output requests
-    model.fieldOutputRequests['F-Output-1'].setValues(
+    # model.fieldOutputRequests['F-Output-1'].setValues(
+    #     variables=('U', 'UT', 'UR', 'RBANG', 'RBROT')
+    # )
+    model.FieldOutputRequest(
+        name='F-Output-1',
+        createStepName=step_name,
         variables=('U', 'UT', 'UR', 'RBANG', 'RBROT')
     )
     print("step finished")
@@ -227,14 +236,14 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
     rp_bottom_set = assembly.Set(referencePoints=(rp_bottom_obj,), name='m_Set-1')
     rp_top_set = assembly.Set(referencePoints=(rp_top_obj,), name='m_Set-2')
     # ------------------- Kinematic Coupling Constraints -------------------
-    model.Coupling(name='Constraint-1',  
-        controlPoint=rp_top_set, surface=region2, influenceRadius=WHOLE_SURFACE, 
-        couplingType=KINEMATIC, localCsys=None, u1=ON, u2=ON, u3=ON, ur1=ON, 
-        ur2=ON, ur3=ON)
-    model.Coupling(name='Constraint-2', 
-        controlPoint=rp_bottom_set, surface=region3, influenceRadius=WHOLE_SURFACE, 
-        couplingType=KINEMATIC, localCsys=None, u1=ON, u2=ON, u3=ON, ur1=ON, 
-        ur2=ON, ur3=ON)
+    # model.Coupling(name='Constraint-1',  
+    #     controlPoint=rp_top_set, surface=region2, influenceRadius=WHOLE_SURFACE, 
+    #     couplingType=KINEMATIC, localCsys=None, u1=ON, u2=ON, u3=ON, ur1=ON, 
+    #     ur2=ON, ur3=ON)
+    # model.Coupling(name='Constraint-2', 
+    #     controlPoint=rp_bottom_set, surface=region3, influenceRadius=WHOLE_SURFACE, 
+    #     couplingType=KINEMATIC, localCsys=None, u1=ON, u2=ON, u3=ON, ur1=ON, 
+    #     ur2=ON, ur3=ON)
     print("interaction finished")
     # ------------------- Boundary Conditions -------------------
     model.DisplacementBC(
@@ -278,18 +287,53 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
 # ------------------- Integrated Nonlinear Local Buckling (Riks) Analysis -------------------
     # Write restart file for imperfection import
     mdb.models[model_name].keywordBlock.synchVersions(storeNodesAndElements=False)
-    mdb.models[model_name].keywordBlock.replace(51,"*Restart, write, frequency=0\n*node file, global=yes, last mode=1\nu")
+    # mdb.models[model_name].keywordBlock.replace(51,"*Restart, write, frequency=0\n*node file, global=yes, last mode=1\nu")
+    kb = mdb.models[model_name].keywordBlock
+    kb.synchVersions(storeNodesAndElements=False)
+    for i, block in enumerate(kb.sieBlocks):
+        if '*Step' in block:
+            insert_pos = i
+            break
+    kb.insert(
+        insert_pos,
+        "*Restart, write, frequency=0\n"
+        "*Node File, global=yes, last mode=1\n"
+        "U"
+    )
     # Copy model for nonlinear analysis
     mdb.Model(name=model_name+'-Copy', objectToCopy=mdb.models[model_name])
     mdb.models[model_name+'-Copy'].keywordBlock.synchVersions(storeNodesAndElements=False)
     imp_line = f"*Imperfection, file={job_name}, Step=1\n1, {section.d}"
-    mdb.models[model_name+'-Copy'].keywordBlock.replace(38, imp_line)
+    # mdb.models[model_name+'-Copy'].keywordBlock.replace(38, imp_line)
+    kb2 = mdb.models[model_name+'-Copy'].keywordBlock
+    kb2.synchVersions(storeNodesAndElements=False)
+    for i, block in enumerate(kb2.sieBlocks):
+        if '*Step' in block:
+            step_pos = i
+            break
+    kb2.insert(step_pos, imp_line)
     # Create Static Riks step
     mdb.models[model_name+'-Copy'].StaticRiksStep(name='BuckleStep', previous='Initial', maintainAttributes=True, minArcInc=1e-09, nlgeom=ON, maxNumInc=100)
     # Set output requests
-    mdb.models[model_name+'-Copy'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'MISES', 'TSHR', 'ALPHA', 'TRIAX', 'E', 'PE', 'U', 'UR', 'RF', 'CF'))
+    # mdb.models[model_name+'-Copy'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'MISES', 'TSHR', 'ALPHA', 'TRIAX', 'E', 'PE', 'U', 'UR', 'RF', 'CF'))
+    # regionDef=mdb.models[model_name+'-Copy'].rootAssembly.sets['m_Set-2']
+    # mdb.models[model_name+'-Copy'].historyOutputRequests['H-Output-1'].setValues(variables=('U3','RF3','ALLIE'), region=regionDef, sectionPoints=DEFAULT, rebar=EXCLUDE)
+    copy_model = mdb.models[model_name+'-Copy']
+    copy_model.FieldOutputRequest(
+        name='F-Output-1',
+        createStepName='BuckleStep',
+        variables=('S', 'MISES', 'TSHR', 'ALPHA', 'TRIAX',
+                'E', 'PE', 'U', 'UR', 'RF', 'CF')
+    )
     regionDef=mdb.models[model_name+'-Copy'].rootAssembly.sets['m_Set-2']
-    mdb.models[model_name+'-Copy'].historyOutputRequests['H-Output-1'].setValues(variables=('U3','RF3','ALLIE'), region=regionDef, sectionPoints=DEFAULT, rebar=EXCLUDE)
+    copy_model.HistoryOutputRequest(
+        name='H-Output-1',
+        createStepName='BuckleStep',
+        variables=('U3', 'RF3', 'ALLIE'),
+        region=regionDef,
+        sectionPoints=DEFAULT,
+        rebar=EXCLUDE
+    )
     # Modify load and boundary
     mdb.models[model_name+'-Copy'].loads['Axial_Compressive_Force'].suppress()
     mdb.models[model_name+'-Copy'].boundaryConditions['BC_Top_Guided'].setValuesInStep(stepName='BuckleStep', u3=-20.0)
@@ -297,6 +341,7 @@ def create_buckling_model(section, model_name='Buckling_Model', part_name='Multi
     job2 = mdb.Job(name=job_name+'_Local', model=model_name+'-Copy', type=ANALYSIS, memory=90, memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, resultsFormat=ODB, numDomains=16, numCpus=16, numGPUs=1)
     job2.submit(consistencyChecking=OFF)
     job2.waitForCompletion()
+    print("job2 status =", job2.status)
     print("Nonlinear local buckling job completed successfully!")
     final_odb_path = os.path.join(save_path, job_name + "_Local.odb")
     extract_load_displacement(final_odb_path, save_path)
@@ -384,14 +429,14 @@ ALUMINUM_MATERIALS = {
 
 if __name__ == "__main__":
     # # parameter study for defect factor
-    # yield_stress_list = [(180, 0.006), (180, 0.015)] #yield stress, defect factor (180, 0.006) ，(180, 0.015) is not finished
+    # yield_stress_list = [(180, 0.005),] #yield stress, defect factor (180, 0.006) ，(180, 0.015) is not finished
     # # yield_stress_list = [(180, 0.006)] # for test
     # for ys in yield_stress_list:
     #     yield_stress_param = int(ys[0])
     #     df = ys[1]
     #     plastic_data = ALUMINUM_MATERIALS[yield_stress_param]
     #     ys_str = str(yield_stress_param)
-    #     for j in range(19, 29): #(28, 29)
+    #     for j in range(0, 29): #(28, 29)
     #         h_param = 140.0 + j * 10.0
     #         b_param = 140.0 + j * 10.0
     #         h3_param = 50.0 + j * 10.0
@@ -436,66 +481,65 @@ if __name__ == "__main__":
     #             continue
     # print("all computations finished!")
     
-    # parameter study for dimension
-    yield_stress_list = [(180, 2)] #yield stress, dimension factor (180, 2),
-    # yield_stress_list = [(90, 2)] # for test
-    for ys in yield_stress_list:
-        yield_stress_param = int(ys[0])
-        df = ys[1]
-        plastic_data = ALUMINUM_MATERIALS[yield_stress_param]
-        ys_str = str(yield_stress_param)
-        for j in range(15, 29):
-            h_param = 140 * df + j * 10.0 * df
-            b_param = 140 * df + j * 10.0 * df
-            t_param = 5 * df
-            b1_param = 35 * df
-            b2_param = 10 * df
-            h3_param = 50.0 * df + j * 10.0 * df
-            b4_param = 10 * df
-            b3_param = 50.0 * df + j * 10.0 * df
-            h1_param = 35 * df
-            h2_param = 10 * df
-            h4_param = 10 * df
-            str_df = str(df).replace("0.", "0_")
-            # if 'MultiCell_Buckling' in mdb.models.keys():
-            #     del mdb.models['MultiCell_Buckling']
-            # if 'MultiCell_Buckling-Copy' in mdb.models.keys():
-            #     del mdb.models['MultiCell_Buckling-Copy']
-            try:
-                cross_section = MultiCellAluminumSection(
-                    b=b_param,
-                    h=h_param,
-                    t=t_param,
-                    b1=b1_param,
-                    b2=b2_param,
-                    b3=b3_param,
-                    b4=b4_param,
-                    h1=h1_param,
-                    h2=h2_param,
-                    h3=h3_param,
-                    h4=h4_param,
-                    density=2.7e-9,
-                    young=70000.0,
-                    poisson=0.3,
-                    defect_factor=0.006,
-                    plastic_table=plastic_data,
-                    yield_stress=yield_stress_param,
-                    working_dir=rf"C:\aluminium\abaqus_working_directory\Local_Buckling_Results_In_Dimension\{ys_str}_{str_df}".replace("0.", "")
-                )
-                job_suffix = f"_YS{ys_str}_b{b_param}_h{h_param}".replace(".0", "")
-                create_buckling_model(
-                    section=cross_section,
-                    model_name=f'MultiCell_Buckling{job_suffix}',
-                    part_name='Aluminum_Component',
-                    seed_size=4,
-                    job_name=f'Buckling_Job{job_suffix}',
-                    num_eigen=6,
-                )
-                print(f"yield_stress = {ys} compute finished")
-            except Exception as e:
-                print(f"compute failed, {str(e)}")
-                continue
-    print("all computations finished!")
+    # # parameter study for dimension
+    # yield_stress_list = [(180, 2), (180, 0.5)] #yield stress, dimension factor
+    # # yield_stress_list = [(90, 2)] # for test
+    # for ys in yield_stress_list:
+    #     yield_stress_param = int(ys[0])
+    #     df = ys[1]
+    #     plastic_data = ALUMINUM_MATERIALS[yield_stress_param]
+    #     ys_str = str(yield_stress_param)
+    #     for j in range(0, 29):
+    #         h_param = 140 * df + j * 10.0 * df
+    #         b_param = 140 * df + j * 10.0 * df
+    #         t_param = 5 * df
+    #         b1_param = 35 * df
+    #         b2_param = 10 * df
+    #         h3_param = 50.0 * df + j * 10.0 * df
+    #         b4_param = 10 * df
+    #         b3_param = 50.0 * df + j * 10.0 * df
+    #         h1_param = 35 * df
+    #         h2_param = 10 * df
+    #         h4_param = 10 * df
+    #         # if 'MultiCell_Buckling' in mdb.models.keys():
+    #         #     del mdb.models['MultiCell_Buckling']
+    #         # if 'MultiCell_Buckling-Copy' in mdb.models.keys():
+    #         #     del mdb.models['MultiCell_Buckling-Copy']
+    #         try:
+    #             cross_section = MultiCellAluminumSection(
+    #                 b=b_param,
+    #                 h=h_param,
+    #                 t=t_param,
+    #                 b1=b1_param,
+    #                 b2=b2_param,
+    #                 b3=b3_param,
+    #                 b4=b4_param,
+    #                 h1=h1_param,
+    #                 h2=h2_param,
+    #                 h3=h3_param,
+    #                 h4=h4_param,
+    #                 density=2.7e-9,
+    #                 young=70000.0,
+    #                 poisson=0.3,
+    #                 defect_factor=0.006,
+    #                 plastic_table=plastic_data,
+    #                 yield_stress=yield_stress_param,
+    #                 working_dir=rf"C:\aluminium\abaqus_working_directory\Local_Buckling_Results_In_Dimension\{ys_str}_{df}".replace(".0", "")
+    #             )
+    #             job_suffix = f"_YS{ys_str}_b{b_param}_h{h_param}".replace(".0", "")
+    #             create_buckling_model(
+    #                 section=cross_section,
+    #                 model_name=f'MultiCell_Buckling{job_suffix}',
+    #                 part_name='Aluminum_Component',
+    #                 seed_size=4,
+    #                 job_name=f'Buckling_Job{job_suffix}',
+    #                 num_eigen=6,
+    #             )
+    #             print(f"yield_stress = {ys} compute finished")
+    #         except Exception as e:
+    #             print(f"compute failed, {str(e)}")
+    #             continue
+    # print("all computations finished!")
 
     # # parameter study for n factor
     # yield_stress_list = [(183, 36), (182, 10.8),] #yield stress, hardening factor
@@ -655,59 +699,59 @@ if __name__ == "__main__":
     #             continue
     # print("all computations finished!")
 
-    # # parameter study for hight-width ratio
-    # yield_stress_list = [(180, 0.4)] #yield stress and hight-width ratio
-    # # yield_stress_list = [(90, 0.007)] # for test
-    # for ys in yield_stress_list:
-    #     yield_stress_param = int(ys[0])
-    #     ratio = ys[1]
-    #     plastic_data = ALUMINUM_MATERIALS[yield_stress_param]
-    #     ys_str = str(yield_stress_param)
-    #     for j in range(0, 29):
-    #         h_param = 160 + j * 10.0
-    #         b_param = h_param * ratio
-    #         h3_param = 50.0 + j * 10.0
-    #         b3_param = 6.0 + j * 6.0
-    #         b4_param = 10.0 + j * 1.0
-    #         # if 'MultiCell_Buckling' in mdb.models.keys():
-    #         #     del mdb.models['MultiCell_Buckling']
-    #         # if 'MultiCell_Buckling-Copy' in mdb.models.keys():
-    #         #     del mdb.models['MultiCell_Buckling-Copy']
-    #         try:
-    #             cross_section = MultiCellAluminumSection(
-    #                 b=b_param,
-    #                 h=h_param,
-    #                 t=5.0,
-    #                 b1=35.0,
-    #                 b2=10.0,
-    #                 b3=b3_param,
-    #                 b4=b4_param,
-    #                 h1=35.0,
-    #                 h2=20.0,
-    #                 h3=h3_param,
-    #                 h4=10.0,
-    #                 density=2.7e-9,
-    #                 young=70000.0,
-    #                 poisson=0.3,
-    #                 defect_factor=0.006,
-    #                 plastic_table=plastic_data,
-    #                 yield_stress=yield_stress_param,
-    #                 working_dir=rf"C:\aluminium\abaqus_working_directory\Local_Buckling_Results_In_Hight_width_Ratio\{ys_str}_{ratio}".replace(".0", "")
-    #             )
-    #             job_suffix = f"_YS{ys_str}_b{b_param}_h{h_param}".replace(".0", "")
-    #             create_buckling_model(
-    #                 section=cross_section,
-    #                 model_name=f'MultiCell_Buckling{job_suffix}',
-    #                 part_name='Aluminum_Component',
-    #                 seed_size=4,
-    #                 job_name=f'Buckling_Job{job_suffix}',
-    #                 num_eigen=6,
-    #             )
-    #             print(f"yield_stress = {ys} compute finished")
-    #         except Exception as e:
-    #             print(f"compute failed, {str(e)}")
-    #             continue
-    # print("all computations finished!")
+    # parameter study for hight-width ratio
+    yield_stress_list = [(180, 0.4)] #yield stress and hight-width ratio
+    # yield_stress_list = [(90, 0.007)] # for test
+    for ys in yield_stress_list:
+        yield_stress_param = int(ys[0])
+        ratio = ys[1]
+        plastic_data = ALUMINUM_MATERIALS[yield_stress_param]
+        ys_str = str(yield_stress_param)
+        for j in range(0, 2): #29
+            h_param = 160 + j * 10.0
+            b_param = h_param * ratio
+            h3_param = 50.0 + j * 10.0
+            b3_param = 6.0 + j * 6.0
+            b4_param = 10.0 + j * 1.0
+            # if 'MultiCell_Buckling' in mdb.models.keys():
+            #     del mdb.models['MultiCell_Buckling']
+            # if 'MultiCell_Buckling-Copy' in mdb.models.keys():
+            #     del mdb.models['MultiCell_Buckling-Copy']
+            try:
+                cross_section = MultiCellAluminumSection(
+                    b=b_param,
+                    h=h_param,
+                    t=5.0,
+                    b1=35.0,
+                    b2=10.0,
+                    b3=b3_param,
+                    b4=b4_param,
+                    h1=35.0,
+                    h2=20.0,
+                    h3=h3_param,
+                    h4=10.0,
+                    density=2.7e-9,
+                    young=70000.0,
+                    poisson=0.3,
+                    defect_factor=0.006,
+                    plastic_table=plastic_data,
+                    yield_stress=yield_stress_param,
+                    working_dir=rf"C:\aluminium\abaqus_working_directory\Local_Buckling_Results_In_Hight_width_Ratio\{ys_str}".replace(".0", "")
+                )
+                job_suffix = f"_YS{ys_str}_b{b_param}_h{h_param}".replace(".0", "")
+                create_buckling_model(
+                    section=cross_section,
+                    model_name=f'MultiCell_Buckling{job_suffix}',
+                    part_name='Aluminum_Component',
+                    seed_size=4,
+                    job_name=f'Buckling_Job{job_suffix}',
+                    num_eigen=6,
+                )
+                print(f"yield_stress = {ys} compute finished")
+            except Exception as e:
+                print(f"compute failed, {str(e)}")
+                continue
+    print("all computations finished!")
 
     # # seed analysis for yield_stress
     # for seed in range(1, 11):
